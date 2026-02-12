@@ -1,0 +1,312 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MLFlowChart - Interactive ML Workflow Visualization</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #f5f5f5;
+            overflow: hidden;
+        }
+        
+        .header {
+            background: #2c3e50;
+            color: white;
+            padding: 1rem 2rem;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        
+        .header h1 {
+            font-size: 1.5rem;
+            font-weight: 600;
+        }
+        
+        .toolbar {
+            display: flex;
+            gap: 1rem;
+        }
+        
+        .btn {
+            background: #3498db;
+            color: white;
+            border: none;
+            padding: 0.5rem 1rem;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.9rem;
+            transition: background 0.2s;
+        }
+        
+        .btn:hover {
+            background: #2980b9;
+        }
+        
+        .btn.secondary {
+            background: #95a5a6;
+        }
+        
+        .btn.secondary:hover {
+            background: #7f8c8d;
+        }
+        
+        .main-container {
+            display: flex;
+            height: calc(100vh - 80px);
+        }
+        
+        .sidebar {
+            width: 250px;
+            background: white;
+            border-right: 1px solid #ddd;
+            padding: 1rem;
+            overflow-y: auto;
+        }
+        
+        .node-palette {
+            margin-bottom: 2rem;
+        }
+        
+        .node-palette h3 {
+            margin-bottom: 1rem;
+            color: #2c3e50;
+            font-size: 1.1rem;
+        }
+        
+        .node-item {
+            background: #ecf0f1;
+            padding: 0.75rem;
+            margin-bottom: 0.5rem;
+            border-radius: 4px;
+            cursor: grab;
+            border-left: 4px solid #3498db;
+            transition: transform 0.2s;
+        }
+        
+        .node-item:hover {
+            transform: translateX(4px);
+        }
+        
+        .node-item.data { border-left-color: #e74c3c; }
+        .node-item.model { border-left-color: #9b59b6; }
+        .node-item.training { border-left-color: #27ae60; }
+        .node-item.evaluation { border-left-color: #f39c12; }
+        
+        .canvas-container {
+            flex: 1;
+            position: relative;
+            overflow: hidden;
+        }
+        
+        #workflow-canvas {
+            display: block;
+            cursor: grab;
+            background: #fafafa;
+        }
+        
+        #workflow-canvas:active {
+            cursor: grabbing;
+        }
+        
+        .metrics-panel {
+            position: absolute;
+            top: 1rem;
+            right: 1rem;
+            background: white;
+            padding: 1rem;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            min-width: 200px;
+        }
+        
+        .metrics-panel h4 {
+            margin-bottom: 0.5rem;
+            color: #2c3e50;
+        }
+        
+        .metric {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 0.25rem;
+            font-size: 0.9rem;
+        }
+        
+        .loading {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: white;
+            padding: 2rem;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>MLFlowChart</h1>
+        <div class="toolbar">
+            <button class="btn" onclick="addDataNode()">Add Data</button>
+            <button class="btn" onclick="addModelNode()">Add Model</button>
+            <button class="btn" onclick="runPipeline()">Run Pipeline</button>
+            <button class="btn secondary" onclick="exportPipeline()">Export</button>
+        </div>
+    </div>
+    
+    <div class="main-container">
+        <div class="sidebar">
+            <div class="node-palette">
+                <h3>Components</h3>
+                <div class="node-item data" draggable="true" data-type="data">
+                    📊 Data Source
+                </div>
+                <div class="node-item model" draggable="true" data-type="model">
+                    🧠 ML Model
+                </div>
+                <div class="node-item training" draggable="true" data-type="training">
+                    🏋️ Training
+                </div>
+                <div class="node-item evaluation" draggable="true" data-type="evaluation">
+                    📈 Evaluation
+                </div>
+            </div>
+            
+            <div class="pipeline-info">
+                <h3>Pipeline Info</h3>
+                <div class="metric">
+                    <span>Nodes:</span>
+                    <span id="node-count">0</span>
+                </div>
+                <div class="metric">
+                    <span>Connections:</span>
+                    <span id="edge-count">0</span>
+                </div>
+            </div>
+        </div>
+        
+        <div class="canvas-container">
+            <canvas id="workflow-canvas" width="1200" height="800"></canvas>
+            
+            <div class="metrics-panel">
+                <h4>Real-time Metrics</h4>
+                <div class="metric">
+                    <span>Accuracy:</span>
+                    <span id="accuracy">--</span>
+                </div>
+                <div class="metric">
+                    <span>Loss:</span>
+                    <span id="loss">--</span>
+                </div>
+                <div class="metric">
+                    <span>Training Time:</span>
+                    <span id="training-time">--</span>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="loading" id="loading">
+        <div>Loading MLFlowChart...</div>
+        <div style="margin-top: 1rem; font-size: 0.9rem; color: #666;">Initializing WebAssembly module</div>
+    </div>
+    
+    <script type="module">
+        import init, { Pipeline, Renderer } from './pkg/mlflowchart.js';
+        
+        let pipeline;
+        let renderer;
+        let nodeCounter = 0;
+        
+        async function initApp() {
+            try {
+                await init();
+                
+                pipeline = new Pipeline();
+                const canvas = document.getElementById('workflow-canvas');
+                renderer = new Renderer(canvas);
+                
+                setupEventListeners();
+                render();
+                
+                document.getElementById('loading').style.display = 'none';
+                console.log('MLFlowChart initialized successfully');
+            } catch (error) {
+                console.error('Failed to initialize MLFlowChart:', error);
+            }
+        }
+        
+        function setupEventListeners() {
+            const canvas = document.getElementById('workflow-canvas');
+            
+            canvas.addEventListener('click', (e) => {
+                const rect = canvas.getBoundingClientRect();
+                const x = e.clientX - rect.left;
+                const y = e.clientY - rect.top;
+                console.log(`Canvas clicked at: ${x}, ${y}`);
+            });
+        }
+        
+        function render() {
+            if (renderer) {
+                renderer.clear();
+                updateUI();
+            }
+            requestAnimationFrame(render);
+        }
+        
+        function updateUI() {
+            if (pipeline) {
+                document.getElementById('node-count').textContent = pipeline.get_node_count();
+            }
+        }
+        
+        window.addDataNode = () => {
+            if (pipeline) {
+                const id = `data_${++nodeCounter}`;
+                pipeline.add_node(id, 'data', 100 + Math.random() * 200, 100 + Math.random() * 200);
+                console.log(`Added data node: ${id}`);
+            }
+        };
+        
+        window.addModelNode = () => {
+            if (pipeline) {
+                const id = `model_${++nodeCounter}`;
+                pipeline.add_node(id, 'model', 100 + Math.random() * 200, 100 + Math.random() * 200);
+                console.log(`Added model node: ${id}`);
+            }
+        };
+        
+        window.runPipeline = () => {
+            console.log('Running ML pipeline...');
+            // Simulate metrics update
+            setTimeout(() => {
+                document.getElementById('accuracy').textContent = '94.2%';
+                document.getElementById('loss').textContent = '0.058';
+                document.getElementById('training-time').textContent = '2.3s';
+            }, 1000);
+        };
+        
+        window.exportPipeline = () => {
+            if (pipeline) {
+                const data = pipeline.serialize();
+                console.log('Pipeline exported:', data);
+                alert('Pipeline exported to console');
+            }
+        };
+        
+        initApp();
+    </script>
+</body>
+</html>
