@@ -105,12 +105,41 @@ cargo test
 wasm-pack test --headless --firefox
 ```
 
+## Security Considerations
+
+### Input Validation
+
+- **Node labels and parameters** must be sanitized before rendering to the DOM to prevent stored XSS — a malicious pipeline JSON with `<script>` in a node name will execute in the viewer's browser.
+- **Pipeline configuration files** (JSON/YAML imports) should be validated against a strict schema before deserialization. Use `serde`'s `#[serde(deny_unknown_fields)]` on all config structs.
+- **Edge connections** must be validated: reject self-loops, duplicate edges, and references to non-existent node IDs. Failing to do so can cause panics or undefined behavior in graph traversal.
+
+### Pipeline Safety
+
+- **Cycle detection** is mandatory before pipeline execution. A cyclic ML pipeline graph will cause infinite loops or stack overflows inside the WASM linear memory, crashing the entire tab.
+- **Resource limits** — enforce maximum node count, edge count, and nesting depth to prevent denial-of-service via memory exhaustion in the WASM heap.
+
+### WebAssembly Hardening
+
+- Always enable `console_error_panic_hook` so panics produce actionable stack traces instead of opaque `unreachable` traps. Unhandled panics in WASM silently corrupt state.
+- Use `#[wasm_bindgen]` with explicit typing; avoid passing raw pointers across the JS↔WASM boundary.
+- Integer overflow in node/edge ID generation can cause ID collisions — use checked arithmetic or `u64` counters.
+
+### Deployment
+
+- Do **not** use `python -m http.server` in production — it lacks TLS, CORS controls, and security headers.
+- Serve over HTTPS with these response headers:
+  - `Content-Security-Policy: default-src 'self'; script-src 'self' 'wasm-unsafe-eval'`
+  - `X-Content-Type-Options: nosniff`
+  - `X-Frame-Options: DENY`
+
 ## Contributing
 
 1. Fork the repository
 2. Create a feature branch
 3. Make your changes
-4. Add tests for new functionality
+4. Add tests — include both happy-path and adversarial/malformed inputs
+5. Run `cargo test` and `wasm-pack test --headless --firefox`
+6. Submit a pull request with a clear description of your changess for new functionality
 5. Submit a pull request
 
 ## License
